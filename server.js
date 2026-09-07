@@ -25,7 +25,15 @@ function logActivity(data, ip) {
   const time = new Date().toLocaleString('en-IN', { hour12: true });
   console.log(color(`\n[${time}] NAYA VISITOR (${ip})`, 33));
   if (data.location) {
-    console.log(color(`  Location : ${data.location.name} (${data.location.lat}, ${data.location.lon})`, 36));
+    const l = data.location;
+    console.log(color(`  Address  : ${l.fullAddress}`, 36));
+    if (l.road) console.log(color(`  Road     : ${l.road}`, 36));
+    if (l.area) console.log(color(`  Area     : ${l.area}`, 36));
+    if (l.city) console.log(color(`  City     : ${l.city}`, 36));
+    if (l.state) console.log(color(`  State    : ${l.state}`, 36));
+    if (l.postcode) console.log(color(`  Pincode  : ${l.postcode}`, 36));
+    if (l.country) console.log(color(`  Country  : ${l.country}`, 36));
+    console.log(color(`  Coords   : ${l.lat}, ${l.lon}  (accuracy: ${l.accuracy})`, 36));
   }
   if (data.weather) {
     const w = data.weather;
