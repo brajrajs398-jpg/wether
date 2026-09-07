@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mausam - Weather Forecast</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: rgba(255,255,255,0.95);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  h1 { text-align: center; color: #222; font-size: 22px; margin-bottom: 5px; }
+  .loc { text-align: center; color: #666; font-size: 14px; margin-bottom: 20px; }
+  .status { text-align: center; padding: 40px 0; color: #555; }
+  .now {
+    text-align: center;
+    display: none;
+  }
+  .now .temp { font-size: 56px; font-weight: bold; color: #222; }
+  .now .desc { font-size: 16px; color: #555; margin: 5px 0 15px; }
+  .details {
+    display: flex;
+    justify-content: space-around;
+    margin: 15px 0 25px;
+    font-size: 13px;
+    color: #444;
+  }
+  .details div { text-align: center; }
+  .details b { display: block; font-size: 15px; color: #222; }
+  .forecast {
+    display: none;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+  .day {
+    background: #f0f6ff;
+    border-radius: 12px;
+    padding: 12px 8px;
+    text-align: center;
+    min-width: 70px;
+    flex-shrink: 0;
+  }
+  .day .name { font-size: 12px; color: #666; margin-bottom: 4px; }
+  .day .icon { font-size: 24px; margin: 4px 0; }
+  .day .hi { font-weight: bold; font-size: 14px; color: #222; }
+  .day .lo { font-size: 12px; color: #888; }
+  .retry {
+    display: block;
+    margin: 15px auto 0;
+    padding: 10px 20px;
+    background: #4facfe;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .error { color: #c0392b; text-align: center; padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🌤️ Aapka Mausam</h1>
+  <div class="loc" id="locName">location dhoondh rahe hain...</div>
+
+  <div class="status" id="status">📍 Location permission allow karein...</div>
+
+  <div class="now" id="nowBlock">
+    <div class="temp" id="temp">--°</div>
+    <div class="desc" id="desc">--</div>
+    <div class="details">
+      <div>💧<b id="humidity">--%</b>Humidity</div>
+      <div>💨<b id="wind">-- km/h</b>Hawa</div>
+      <div>🌡️<b id="feels">--°</b>Feels like</div>
+    </div>
+  </div>
+
+  <div class="forecast" id="forecast"></div>
+  <button class="retry" id="retryBtn" style="display:none">Dobara try karein</button>
+</div>
+
+<script>
+const weatherCodes = {
+  0: ['☀️','Saaf aasman'], 1: ['🌤️','Halka badal'], 2: ['⛅','Badal'], 3: ['☁️','Ghana badal'],
+  45: ['🌫️','Kohra'], 48: ['🌫️','Kohra'],
+  51: ['🌦️','Halki bauchhar'], 53: ['🌦️','Bauchhar'], 55: ['🌧️','Tez bauchhar'],
+  61: ['🌧️','Halki baarish'], 63: ['🌧️','Baarish'], 65: ['🌧️','Tez baarish'],
+  71: ['🌨️','Halki barfbaari'], 73: ['🌨️','Barfbaari'], 75: ['❄️','Tez barfbaari'],
+  80: ['🌦️','Bauchhar'], 81: ['🌧️','Tez bauchhar'], 82: ['⛈️','Bahut tez baarish'],
+  95: ['⛈️','Aandhi toofan'], 96: ['⛈️','Ole ke saath toofan'], 99: ['⛈️','Bhari toofan']
+};
+
+function codeInfo(code) {
+  return weatherCodes[code] || ['🌡️','Mausam'];
+}
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = isError ? 'error' : 'status';
+  el.textContent = msg;
+  document.getElementById('retryBtn').style.display = isError ? 'block' : 'none';
+}
+
+async function getLocationName(lat, lon) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const data = await res.json();
+    const a = data.address || {};
+    return a.city || a.town || a.village || a.county || data.display_name || 'Aapki location';
+  } catch {
+    return 'Aapki location';
+  }
+}
+
+async function loadWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('API error');
+  const data = await res.json();
+
+  const cur = data.current;
+  const [icon, desc] = codeInfo(cur.weather_code);
+  document.getElementById('temp').textContent = Math.round(cur.temperature_2m) + '°C';
+  document.getElementById('desc').textContent = icon + ' ' + desc;
+  document.getElementById('humidity').textContent = Math.round(cur.relative_humidity_2m) + '%';
+  document.getElementById('wind').textContent = Math.round(cur.wind_speed_10m) + ' km/h';
+  document.getElementById('feels').textContent = Math.round(cur.apparent_temperature) + '°';
+
+  const forecastEl = document.getElementById('forecast');
+  forecastEl.innerHTML = '';
+  const days = data.daily.time;
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  for (let i = 0; i < days.length; i++) {
+    const [dIcon] = codeInfo(data.daily.weather_code[i]);
+    const dName = i === 0 ? 'Aaj' : dayNames[new Date(days[i]).getDay()];
+    const hi = Math.round(data.daily.temperature_2m_max[i]);
+    const lo = Math.round(data.daily.temperature_2m_min[i]);
+    forecastEl.innerHTML += `
+      <div class="day">
+        <div class="name">${dName}</div>
+        <div class="icon">${dIcon}</div>
+        <div class="hi">${hi}°</div>
+        <div class="lo">${lo}°</div>
+      </div>`;
+  }
+
+  document.getElementById('status').style.display = 'none';
+  document.getElementById('nowBlock').style.display = 'block';
+  forecastEl.style.display = 'flex';
+}
+
+function start() {
+  setStatus('📍 Location permission allow karein...', false);
+  document.getElementById('locName').textContent = '';
+
+  if (!navigator.geolocation) {
+    setStatus('Aapka browser location support nahi karta.', true);
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      setStatus('Mausam load ho raha hai...', false);
+      try {
+        getLocationName(latitude, longitude).then(name => {
+          document.getElementById('locName').textContent = '📍 ' + name;
+        });
+        await loadWeather(latitude, longitude);
+      } catch (e) {
+        setStatus('Data load nahi ho paya. Dobara try karein.', true);
+      }
+    },
+    (err) => {
+      setStatus('Location permission nahi mili. Allow karke retry karein.', true);
+    }
+  );
+}
+
+document.getElementById('retryBtn').addEventListener('click', start);
+start();
+</script>
+</body>
+</html>
