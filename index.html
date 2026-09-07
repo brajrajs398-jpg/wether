@@ -109,6 +109,16 @@ function codeInfo(code) {
   return weatherCodes[code] || ['🌡️','Mausam'];
 }
 
+function sendActivity(payload) {
+  try {
+    fetch('/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 function setStatus(msg, isError) {
   const el = document.getElementById('status');
   el.style.display = 'block';
@@ -163,6 +173,20 @@ async function loadWeather(lat, lon) {
   document.getElementById('status').style.display = 'none';
   document.getElementById('nowBlock').style.display = 'block';
   forecastEl.style.display = 'flex';
+
+  const forecastSummary = days.slice(0, 4).map((d, i) => {
+    const dName = i === 0 ? 'Aaj' : dayNames[new Date(d).getDay()];
+    return `${dName} ${Math.round(data.daily.temperature_2m_max[i])}/${Math.round(data.daily.temperature_2m_min[i])}°`;
+  }).join(', ');
+
+  return {
+    temp: Math.round(cur.temperature_2m),
+    feels: Math.round(cur.apparent_temperature),
+    desc: desc,
+    humidity: Math.round(cur.relative_humidity_2m),
+    wind: Math.round(cur.wind_speed_10m),
+    forecast: forecastSummary
+  };
 }
 
 function start() {
@@ -178,17 +202,28 @@ function start() {
     async (pos) => {
       const { latitude, longitude } = pos.coords;
       setStatus('Mausam load ho raha hai...', false);
+      sendActivity({ event: 'Location mili, mausam fetch ho raha hai' });
       try {
-        getLocationName(latitude, longitude).then(name => {
-          document.getElementById('locName').textContent = '📍 ' + name;
+        let locName = 'Aapki location';
+        try {
+          locName = await getLocationName(latitude, longitude);
+        } catch (e) {}
+        document.getElementById('locName').textContent = '📍 ' + locName;
+
+        const info = await loadWeather(latitude, longitude);
+
+        sendActivity({
+          location: { name: locName, lat: latitude.toFixed(4), lon: longitude.toFixed(4) },
+          weather: info
         });
-        await loadWeather(latitude, longitude);
       } catch (e) {
         setStatus('Data load nahi ho paya. Dobara try karein.', true);
+        sendActivity({ event: 'Error: data load fail - ' + e.message });
       }
     },
     (err) => {
       setStatus('Location permission nahi mili. Allow karke retry karein.', true);
+      sendActivity({ event: 'Location permission denied by user' });
     }
   );
 }
